@@ -1,0 +1,7 @@
+{
+  "name": "published-pages",
+  "private": true,
+  "scripts": {
+    "test": "node --test string-cleaner.test.js"
+  }
+}
