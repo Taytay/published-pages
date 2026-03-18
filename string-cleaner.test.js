@@ -63,3 +63,11 @@ test('reports URL decode errors without changing the text', function () {
   assert.equal(result.text, '%E0%A4%A');
   assert.equal(result.urlDecodeError, true);
 });
+
+test('removes html tags and script block contents', function () {
+  const result = cleanString('<p>Hello</p><script>alert(1)</script><style>body{}</style>World', {
+    stripHtml: true
+  });
+
+  assert.equal(result.text, 'HelloWorld');
+});
