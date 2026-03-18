@@ -82,6 +82,12 @@
               </label>
             </div>
             <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="optRemoveAllWhitespace" />
+              <label class="form-check-label" for="optRemoveAllWhitespace">
+                Remove all whitespace
+              </label>
+            </div>
+            <div class="form-check">
               <input class="form-check-input" type="checkbox" id="optTabs" />
               <label class="form-check-label" for="optTabs">
                 Remove tabs
@@ -98,6 +104,27 @@
               <label class="form-check-label" for="optStripHtml">
                 Remove HTML tags
               </label>
+            </div>
+          </div>
+
+          <hr />
+          <h6 class="fw-semibold mb-3 text-uppercase text-muted" style="font-size:0.75rem;letter-spacing:.08em;">Line / Box Cleanup</h6>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small mb-1" for="optRemoveFirstLines">Remove first lines</label>
+              <input class="form-control form-control-sm" type="number" id="optRemoveFirstLines" min="0" value="0" />
+            </div>
+            <div class="col-6">
+              <label class="form-label small mb-1" for="optRemoveLastLines">Remove last lines</label>
+              <input class="form-control form-control-sm" type="number" id="optRemoveLastLines" min="0" value="0" />
+            </div>
+            <div class="col-6">
+              <label class="form-label small mb-1" for="optRemoveFirstChars">Remove first chars / line</label>
+              <input class="form-control form-control-sm" type="number" id="optRemoveFirstChars" min="0" value="0" />
+            </div>
+            <div class="col-6">
+              <label class="form-label small mb-1" for="optRemoveLastChars">Remove last chars / line</label>
+              <input class="form-control form-control-sm" type="number" id="optRemoveLastChars" min="0" value="0" />
             </div>
           </div>
 
@@ -155,6 +182,7 @@
     </div>
   </div>
 
+  <script src="string-cleaner.js"></script>
   <script>
     (function () {
       var inputEl           = document.getElementById('inputText');
@@ -171,57 +199,45 @@
       var optNewlines       = document.getElementById('optNewlines');
       var optTrim           = document.getElementById('optTrim');
       var optCollapseSpaces = document.getElementById('optCollapseSpaces');
+      var optRemoveAllWhitespace = document.getElementById('optRemoveAllWhitespace');
       var optTabs           = document.getElementById('optTabs');
       var optUrlDecode      = document.getElementById('optUrlDecode');
       var optStripHtml      = document.getElementById('optStripHtml');
+      var optRemoveFirstLines = document.getElementById('optRemoveFirstLines');
+      var optRemoveLastLines = document.getElementById('optRemoveLastLines');
+      var optRemoveFirstChars = document.getElementById('optRemoveFirstChars');
+      var optRemoveLastChars = document.getElementById('optRemoveLastChars');
 
       var allOptions = [
         optNonPrintable, optNewlines, optTrim,
-        optCollapseSpaces, optTabs, optUrlDecode, optStripHtml
+        optCollapseSpaces, optRemoveAllWhitespace, optTabs, optUrlDecode, optStripHtml,
+        optRemoveFirstLines, optRemoveLastLines, optRemoveFirstChars, optRemoveLastChars
       ];
 
-      var urlDecodeError = false;
-
       function clean(str) {
-        urlDecodeError = false;
-        if (optUrlDecode.checked) {
-          try {
-            str = decodeURIComponent(str);
-          } catch (e) {
-            urlDecodeError = true; // flag shown to user; leave str as-is
-          }
-        }
-        if (optStripHtml.checked) {
-          str = str.replace(/<[^>]*>/g, '');
-        }
-        if (optNonPrintable.checked) {
-          // Remove C0 controls (except space/tab/newline/CR which are handled by other options)
-          // and C1 controls, and other non-printable Unicode categories.
-          // Keep printable ASCII (0x20–0x7E) and any character >= 0xA0 (Latin-1 supplement+).
-          str = str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\x80-\x9F]/g, '');
-        }
-        if (optTabs.checked) {
-          str = str.replace(/\t/g, '');
-        }
-        if (optNewlines.checked) {
-          str = str.replace(/\r\n|\r|\n/g, '');
-        }
-        if (optCollapseSpaces.checked) {
-          str = str.replace(/ {2,}/g, ' ');
-        }
-        if (optTrim.checked) {
-          str = str.trim();
-        }
-        return str;
+        return window.StringCleaner.cleanString(str, {
+          nonPrintable: optNonPrintable.checked,
+          newlines: optNewlines.checked,
+          trim: optTrim.checked,
+          collapseSpaces: optCollapseSpaces.checked,
+          removeAllWhitespace: optRemoveAllWhitespace.checked,
+          tabs: optTabs.checked,
+          urlDecode: optUrlDecode.checked,
+          stripHtml: optStripHtml.checked,
+          removeFirstLines: optRemoveFirstLines.value,
+          removeLastLines: optRemoveLastLines.value,
+          removeFirstChars: optRemoveFirstChars.value,
+          removeLastChars: optRemoveLastChars.value
+        });
       }
 
       function update() {
         var input  = inputEl.value;
         var output = clean(input);
-        outputEl.value = output;
+        outputEl.value = output.text;
         inputCountEl.textContent  = input.length  + ' char' + (input.length  === 1 ? '' : 's');
-        outputCountEl.textContent = output.length + ' char' + (output.length === 1 ? '' : 's');
-        if (urlDecodeError) {
+        outputCountEl.textContent = output.text.length + ' char' + (output.text.length === 1 ? '' : 's');
+        if (output.urlDecodeError) {
           urlDecodeWarningEl.classList.remove('d-none');
         } else {
           urlDecodeWarningEl.classList.add('d-none');
@@ -270,9 +286,14 @@
         optNewlines.checked       = true;
         optTrim.checked           = false;
         optCollapseSpaces.checked = false;
+        optRemoveAllWhitespace.checked = false;
         optTabs.checked           = false;
         optUrlDecode.checked      = false;
         optStripHtml.checked      = false;
+        optRemoveFirstLines.value = 0;
+        optRemoveLastLines.value = 0;
+        optRemoveFirstChars.value = 0;
+        optRemoveLastChars.value = 0;
         update();
       });
     })();
