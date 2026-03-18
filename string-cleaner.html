@@ -24,6 +24,43 @@
       resize: vertical;
       min-height: 180px;
     }
+    .string-display {
+      font-family: "Courier New", Courier, monospace;
+      font-size: 0.9rem;
+      min-height: 180px;
+      overflow: auto;
+      padding: 0;
+    }
+    .display-line {
+      display: grid;
+      grid-template-columns: 3rem minmax(0, 1fr);
+      border-bottom: 1px solid #e9ecef;
+    }
+    .display-line:last-child {
+      border-bottom: 0;
+    }
+    .line-number {
+      background-color: #f8f9fa;
+      border-right: 1px solid #e9ecef;
+      color: #6c757d;
+      padding: 0.4rem 0.55rem;
+      text-align: right;
+      user-select: none;
+    }
+    .line-content {
+      min-height: 2rem;
+      padding: 0.4rem 0.75rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .diff-added {
+      background-color: rgba(25, 135, 84, 0.16);
+      color: #146c43;
+    }
+    .diff-removed {
+      background-color: rgba(220, 53, 69, 0.16);
+      color: #b02a37;
+    }
     .option-group label {
       cursor: pointer;
     }
@@ -108,6 +145,23 @@
           </div>
 
           <hr />
+          <h6 class="fw-semibold mb-3 text-uppercase text-muted" style="font-size:0.75rem;letter-spacing:.08em;">Display Options</h6>
+          <div class="option-group d-flex flex-column gap-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="optShowWhitespace" />
+              <label class="form-check-label" for="optShowWhitespace">
+                Show whitespace characters
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="optShowInvisible" />
+              <label class="form-check-label" for="optShowInvisible">
+                Show invisible characters
+              </label>
+            </div>
+          </div>
+
+          <hr />
           <h6 class="fw-semibold mb-3 text-uppercase text-muted" style="font-size:0.75rem;letter-spacing:.08em;">Line / Box Cleanup</h6>
           <div class="row g-2 mb-3">
             <div class="col-6">
@@ -137,7 +191,7 @@
           <div class="row g-3">
 
             <!-- Input -->
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-lg-4">
               <div class="d-flex justify-content-between align-items-center mb-1">
                 <label for="inputText" class="form-label fw-semibold mb-0">Input</label>
                 <span id="inputCount" class="badge bg-secondary badge-count">0 chars</span>
@@ -148,13 +202,26 @@
                 placeholder="Paste your string here…"
                 spellcheck="false"
               ></textarea>
+              <div class="d-flex justify-content-between align-items-center mt-2 mb-1">
+                <span class="small text-muted">Visual display</span>
+              </div>
+              <div id="inputDisplay" class="form-control string-display" aria-live="polite"></div>
               <div class="d-flex gap-2 mt-2">
                 <button id="clearBtn" class="btn btn-sm btn-outline-danger">Clear</button>
               </div>
             </div>
 
+            <!-- Diff -->
+            <div class="col-12 col-lg-4">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label for="diffDisplay" class="form-label fw-semibold mb-0">Diff</label>
+                <span class="small text-muted">Removed = red, added = green</span>
+              </div>
+              <div id="diffDisplay" class="form-control string-display" aria-live="polite"></div>
+            </div>
+
             <!-- Output -->
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-lg-4">
               <div class="d-flex justify-content-between align-items-center mb-1">
                 <label for="outputText" class="form-label fw-semibold mb-0">Output</label>
                 <div class="d-flex align-items-center gap-1">
@@ -169,6 +236,10 @@
                 placeholder="Cleaned string will appear here…"
                 spellcheck="false"
               ></textarea>
+              <div class="d-flex justify-content-between align-items-center mt-2 mb-1">
+                <span class="small text-muted">Visual display</span>
+              </div>
+              <div id="outputDisplay" class="form-control string-display" aria-live="polite"></div>
               <div class="d-flex gap-2 mt-2">
                 <button id="copyBtn" class="btn btn-sm btn-outline-primary">Copy to Clipboard</button>
                 <span id="copyFallbackMsg" class="text-muted small align-self-center d-none">Press Ctrl+C to copy</span>
@@ -187,6 +258,9 @@
     (function () {
       var inputEl           = document.getElementById('inputText');
       var outputEl          = document.getElementById('outputText');
+      var inputDisplayEl    = document.getElementById('inputDisplay');
+      var diffDisplayEl     = document.getElementById('diffDisplay');
+      var outputDisplayEl   = document.getElementById('outputDisplay');
       var inputCountEl      = document.getElementById('inputCount');
       var outputCountEl     = document.getElementById('outputCount');
       var urlDecodeWarningEl = document.getElementById('urlDecodeWarning');
@@ -203,6 +277,8 @@
       var optTabs           = document.getElementById('optTabs');
       var optUrlDecode      = document.getElementById('optUrlDecode');
       var optStripHtml      = document.getElementById('optStripHtml');
+      var optShowWhitespace = document.getElementById('optShowWhitespace');
+      var optShowInvisible  = document.getElementById('optShowInvisible');
       var optRemoveFirstLines = document.getElementById('optRemoveFirstLines');
       var optRemoveLastLines = document.getElementById('optRemoveLastLines');
       var optRemoveFirstChars = document.getElementById('optRemoveFirstChars');
@@ -211,6 +287,7 @@
       var allOptions = [
         optNonPrintable, optNewlines, optTrim,
         optCollapseSpaces, optRemoveAllWhitespace, optTabs, optUrlDecode, optStripHtml,
+        optShowWhitespace, optShowInvisible,
         optRemoveFirstLines, optRemoveLastLines, optRemoveFirstChars, optRemoveLastChars
       ];
 
@@ -234,7 +311,14 @@
       function update() {
         var input  = inputEl.value;
         var output = clean(input);
+        var displayOptions = {
+          showWhitespace: optShowWhitespace.checked,
+          showInvisible: optShowInvisible.checked
+        };
         outputEl.value = output.text;
+        inputDisplayEl.innerHTML = window.StringCleaner.buildDisplayHtml(input, displayOptions);
+        diffDisplayEl.innerHTML = window.StringCleaner.buildDiffDisplayHtml(input, output.text, displayOptions);
+        outputDisplayEl.innerHTML = window.StringCleaner.buildDisplayHtml(output.text, displayOptions);
         inputCountEl.textContent  = input.length  + ' char' + (input.length  === 1 ? '' : 's');
         outputCountEl.textContent = output.text.length + ' char' + (output.text.length === 1 ? '' : 's');
         if (output.urlDecodeError) {
@@ -251,11 +335,8 @@
 
       clearBtn.addEventListener('click', function () {
         inputEl.value  = '';
-        outputEl.value = '';
-        inputCountEl.textContent  = '0 chars';
-        outputCountEl.textContent = '0 chars';
-        urlDecodeWarningEl.classList.add('d-none');
         copyFallbackMsgEl.classList.add('d-none');
+        update();
       });
 
       copyBtn.addEventListener('click', function () {
@@ -290,12 +371,16 @@
         optTabs.checked           = false;
         optUrlDecode.checked      = false;
         optStripHtml.checked      = false;
+        optShowWhitespace.checked = false;
+        optShowInvisible.checked  = false;
         optRemoveFirstLines.value = 0;
         optRemoveLastLines.value = 0;
         optRemoveFirstChars.value = 0;
         optRemoveLastChars.value = 0;
         update();
       });
+
+      update();
     })();
   </script>
 </body>

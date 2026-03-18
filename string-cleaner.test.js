@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { cleanString } = require('./string-cleaner.js');
+const { cleanString, visualizeText, buildDiffHtml, buildDisplayHtml } = require('./string-cleaner.js');
 
 test('preserves existing newline removal behavior', function () {
   const result = cleanString('hello\r\nworld', { newlines: true });
@@ -70,4 +70,32 @@ test('removes html tags and script block contents', function () {
   });
 
   assert.equal(result.text, 'HelloWorld');
+});
+
+test('visualizes whitespace characters when requested', function () {
+  const result = visualizeText('a b\tc\nd', {
+    showWhitespace: true
+  });
+
+  assert.equal(result, 'a·b⇥\tc↵\nd');
+});
+
+test('visualizes non-whitespace control characters when requested', function () {
+  const result = visualizeText('A' + String.fromCharCode(27) + 'B', {
+    showInvisible: true
+  });
+
+  assert.equal(result, 'A\\x1BB');
+});
+
+test('builds diff html with escaped content and added/removed spans', function () {
+  const result = buildDiffHtml('a<bc', 'a<xc');
+
+  assert.equal(result, 'a&lt;<span class="diff-removed">b</span><span class="diff-added">x</span>c');
+});
+
+test('builds line-numbered display html for multiline text', function () {
+  const result = buildDisplayHtml('alpha\nbeta', {});
+
+  assert.equal(result, '<div class="display-line"><span class="line-number">1</span><span class="line-content">alpha</span></div><div class="display-line"><span class="line-number">2</span><span class="line-content">beta</span></div>');
 });
