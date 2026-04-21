@@ -16,32 +16,21 @@ npm run typecheck    # Type-check only (TypeScript — frontend + functions)
 ```
 
 `npm run dev` only runs the static site. To exercise the Settle Up Pages
-Functions (plus its Durable Object) locally:
+Functions (plus the `GroupDO` Durable Object) locally:
 
 ```bash
-cp wrangler.example.toml wrangler.toml   # first time only
 npm run build
 npx wrangler pages dev dist
 ```
 
-## Settle Up: Cloudflare Durable Object setup (one-time)
+## Settle Up: Cloudflare Durable Object
 
 The Settle Up tool stores each group in its own Durable Object instance (class
 `GroupDO`, defined in `functions/group-do.ts`), keyed by the group's secret
-UUID. To wire it up on a fresh Cloudflare Pages project:
+UUID. The binding is declared in `wrangler.toml` (checked in) — Cloudflare
+Pages reads it at build time and registers/binds the class automatically on
+deploy. No dashboard setup required.
 
-1. Copy the example config so local dev works:
-   ```bash
-   cp wrangler.example.toml wrangler.toml
-   ```
-   `wrangler.toml` is gitignored; you don't need to edit it.
-
-2. Push the code. On first deploy Cloudflare will detect the new `GroupDO`
-   class but won't bind it automatically.
-
-3. In the Pages dashboard, add the binding under
-   **Settings → Functions → Durable Object bindings**:
-   - **Variable name:** `GROUPS`
-   - **Datastore:** *(from current Pages script)* → `GroupDO`
-
-   Save, then redeploy the latest commit so the binding takes effect.
+If you ever need to wipe all group data, delete the Durable Object namespace
+from the Pages project's dashboard; a new one will be created on the next
+deploy.

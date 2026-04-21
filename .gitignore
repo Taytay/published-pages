@@ -1,7 +1,3 @@
 node_modules/
 dist/
-
-# Local Cloudflare config — copy from wrangler.example.toml and fill in the D1
-# database_id. Checking it in without a real ID breaks Pages builds.
-wrangler.toml
 .wrangler/

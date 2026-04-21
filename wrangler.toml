@@ -3,11 +3,9 @@ compatibility_date = "2025-04-01"
 pages_build_output_dir = "dist"
 
 # Each group lives in its own Durable Object instance, keyed by its secret UUID.
-# For local dev (`wrangler pages dev`) this binding is picked up automatically.
-# On the deployed Pages project, add the binding in the dashboard:
-#   Settings → Functions → Durable Object bindings
-#   Variable name: GROUPS
-#   Datastore: (from current script) → GroupDO
+# Checking this file in is what tells Cloudflare Pages to register the GroupDO
+# class + bind it as `GROUPS` at build time. Without it the class never shows
+# up in the dashboard's Durable Object bindings dropdown.
 [[durable_objects.bindings]]
 name = "GROUPS"
 class_name = "GroupDO"
