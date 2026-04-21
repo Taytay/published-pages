@@ -1,5 +1,5 @@
-import { ArrowRight, Check, Plus, Receipt, Trash2, Users, X } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { ArrowRight, Check, Copy, Plus, Receipt, Trash2, Users, X } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./splitwise.css";
 
@@ -16,76 +16,229 @@ type Expense = {
 
 type SplitMode = "equal" | "exact" | "shares";
 
-const STORAGE_KEYS = {
-	people: "splitwise:people",
-	expenses: "splitwise:expenses",
-} as const;
+type GroupData = { people: Person[]; expenses: Expense[] };
 
-function loadJson<T>(key: string, fallback: T): T {
-	try {
-		const raw = localStorage.getItem(key);
-		if (raw == null) return fallback;
-		return JSON.parse(raw) as T;
-	} catch {
-		return fallback;
+const API_BASE = "/api";
+
+async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
+	const res = await fetch(`${API_BASE}${path}`, {
+		...init,
+		headers: {
+			"content-type": "application/json",
+			...init?.headers,
+		},
+	});
+	if (!res.ok) {
+		const body = (await res.json().catch(() => null)) as { error?: string } | null;
+		throw new Error(body?.error ?? `Request failed: ${res.status}`);
 	}
+	return (await res.json()) as T;
 }
 
-function saveJson(key: string, value: unknown): void {
-	try {
-		localStorage.setItem(key, JSON.stringify(value));
-	} catch (err) {
-		console.error("save failed", err);
-	}
+function useHashGroupId(): [string | null, (id: string | null) => void] {
+	const [groupId, setGroupId] = useState<string | null>(() => {
+		const h = window.location.hash.replace(/^#/, "");
+		return h || null;
+	});
+
+	useEffect(() => {
+		const onHash = () => {
+			const h = window.location.hash.replace(/^#/, "");
+			setGroupId(h || null);
+		};
+		window.addEventListener("hashchange", onHash);
+		return () => window.removeEventListener("hashchange", onHash);
+	}, []);
+
+	const update = useCallback((id: string | null) => {
+		if (id) {
+			window.location.hash = id;
+		} else {
+			history.replaceState(null, "", window.location.pathname + window.location.search);
+		}
+		setGroupId(id);
+	}, []);
+
+	return [groupId, update];
 }
 
 export default function SplitwiseApp() {
-	const [people, setPeople] = useState<Person[]>([]);
-	const [expenses, setExpenses] = useState<Expense[]>([]);
-	const [loading, setLoading] = useState(true);
+	const [groupId, setGroupId] = useHashGroupId();
+
+	if (!groupId) {
+		return <Landing onCreated={(id) => setGroupId(id)} />;
+	}
+
+	return <GroupView groupId={groupId} onLeave={() => setGroupId(null)} />;
+}
+
+function Landing({ onCreated }: { onCreated: (id: string) => void }) {
+	const [creating, setCreating] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	const create = async () => {
+		setCreating(true);
+		setError(null);
+		try {
+			const data = await apiJson<{ id: string }>("/groups", { method: "POST" });
+			onCreated(data.id);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to create group");
+			setCreating(false);
+		}
+	};
+
+	return (
+		<div className="min-h-screen bg-slate-50 text-slate-900">
+			<div className="max-w-xl mx-auto p-4 sm:p-6">
+				<header className="mb-6">
+					<a href="index.html" className="text-sm text-slate-500 hover:text-slate-700">
+						&larr; All Tools
+					</a>
+					<h1 className="text-2xl font-bold tracking-tight mt-2">Settle Up</h1>
+					<p className="text-sm text-slate-500 mt-1">Track shared expenses and see who owes whom.</p>
+				</header>
+
+				<div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
+					<p className="text-sm text-slate-600">
+						Create a new group to start tracking expenses. You'll get a secret URL you can share with whoever you're
+						splitting with — anyone with the link can view and edit.
+					</p>
+					<button
+						type="button"
+						onClick={create}
+						disabled={creating}
+						className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:bg-slate-300"
+					>
+						{creating ? "Creating…" : "Create new group"}
+					</button>
+					{error && <div className="text-sm text-rose-600">{error}</div>}
+					<p className="text-xs text-slate-500 pt-2 border-t border-slate-100">
+						Already have a group? Paste the link in your address bar.
+					</p>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function GroupView({ groupId, onLeave }: { groupId: string; onLeave: () => void }) {
+	const [data, setData] = useState<GroupData | null>(null);
+	const [error, setError] = useState<string | null>(null);
 	const [showAddPerson, setShowAddPerson] = useState(false);
 	const [showAddExpense, setShowAddExpense] = useState(false);
 	const [newPersonName, setNewPersonName] = useState("");
+	const [copied, setCopied] = useState(false);
+
+	const load = useCallback(async () => {
+		try {
+			const fresh = await apiJson<GroupData>(`/groups/${encodeURIComponent(groupId)}`);
+			setData(fresh);
+			setError(null);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to load group");
+		}
+	}, [groupId]);
 
 	useEffect(() => {
-		setPeople(loadJson<Person[]>(STORAGE_KEYS.people, []));
-		setExpenses(loadJson<Expense[]>(STORAGE_KEYS.expenses, []));
-		setLoading(false);
-	}, []);
+		setData(null);
+		load();
+	}, [load]);
 
-	const addPerson = () => {
+	const addPerson = async () => {
 		const name = newPersonName.trim();
-		if (!name || people.some((p) => p.name.toLowerCase() === name.toLowerCase())) return;
-		const next = [...people, { id: crypto.randomUUID(), name }];
-		setPeople(next);
-		saveJson(STORAGE_KEYS.people, next);
-		setNewPersonName("");
-		setShowAddPerson(false);
+		if (!name || !data) return;
+		if (data.people.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+			setShowAddPerson(false);
+			setNewPersonName("");
+			return;
+		}
+		try {
+			const created = await apiJson<Person>(`/groups/${encodeURIComponent(groupId)}/people`, {
+				method: "POST",
+				body: JSON.stringify({ name }),
+			});
+			setData({ ...data, people: [...data.people, created] });
+			setNewPersonName("");
+			setShowAddPerson(false);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to add person");
+		}
 	};
 
-	const removePerson = (id: string) => {
-		if (expenses.some((e) => e.payerId === id || e.splits.some((s) => s.personId === id))) {
+	const removePerson = async (id: string) => {
+		if (!data) return;
+		if (data.expenses.some((e) => e.payerId === id || e.splits.some((s) => s.personId === id))) {
 			if (!confirm("This person is in existing expenses. Remove anyway? (expenses referencing them will break)")) {
 				return;
 			}
 		}
-		const next = people.filter((p) => p.id !== id);
-		setPeople(next);
-		saveJson(STORAGE_KEYS.people, next);
+		const prev = data;
+		setData({ ...data, people: data.people.filter((p) => p.id !== id) });
+		try {
+			await apiJson(`/groups/${encodeURIComponent(groupId)}/people/${encodeURIComponent(id)}`, { method: "DELETE" });
+		} catch (err) {
+			setData(prev);
+			setError(err instanceof Error ? err.message : "Failed to remove person");
+		}
 	};
 
-	const addExpense = (expense: Omit<Expense, "id" | "createdAt">) => {
-		const next: Expense[] = [...expenses, { ...expense, id: crypto.randomUUID(), createdAt: Date.now() }];
-		setExpenses(next);
-		saveJson(STORAGE_KEYS.expenses, next);
-		setShowAddExpense(false);
+	const addExpense = async (expense: Omit<Expense, "id" | "createdAt">) => {
+		if (!data) return;
+		try {
+			const created = await apiJson<Expense>(`/groups/${encodeURIComponent(groupId)}/expenses`, {
+				method: "POST",
+				body: JSON.stringify(expense),
+			});
+			setData({ ...data, expenses: [...data.expenses, created] });
+			setShowAddExpense(false);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to add expense");
+		}
 	};
 
-	const removeExpense = (id: string) => {
-		const next = expenses.filter((e) => e.id !== id);
-		setExpenses(next);
-		saveJson(STORAGE_KEYS.expenses, next);
+	const removeExpense = async (id: string) => {
+		if (!data) return;
+		const prev = data;
+		setData({ ...data, expenses: data.expenses.filter((e) => e.id !== id) });
+		try {
+			await apiJson(`/groups/${encodeURIComponent(groupId)}/expenses/${encodeURIComponent(id)}`, { method: "DELETE" });
+		} catch (err) {
+			setData(prev);
+			setError(err instanceof Error ? err.message : "Failed to remove expense");
+		}
 	};
+
+	const copyLink = async () => {
+		try {
+			await navigator.clipboard.writeText(window.location.href);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 1500);
+		} catch {
+			/* clipboard unavailable — ignore */
+		}
+	};
+
+	if (!data && !error) {
+		return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-400">Loading…</div>;
+	}
+
+	if (!data) {
+		return (
+			<div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 gap-4">
+				<div className="text-sm text-rose-600">{error}</div>
+				<button
+					type="button"
+					onClick={onLeave}
+					className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700"
+				>
+					Back to start
+				</button>
+			</div>
+		);
+	}
+
+	const { people, expenses } = data;
 
 	const balances: Record<string, number> = {};
 	for (const p of people) {
@@ -131,10 +284,6 @@ export default function SplitwiseApp() {
 	const nameOf = (id: string) => people.find((p) => p.id === id)?.name || "?";
 	const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
 
-	if (loading) {
-		return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-400">Loading…</div>;
-	}
-
 	return (
 		<div className="min-h-screen bg-slate-50 text-slate-900">
 			<div className="max-w-3xl mx-auto p-4 sm:p-6">
@@ -142,9 +291,26 @@ export default function SplitwiseApp() {
 					<a href="index.html" className="text-sm text-slate-500 hover:text-slate-700">
 						&larr; All Tools
 					</a>
-					<h1 className="text-2xl font-bold tracking-tight mt-2">Settle Up</h1>
-					<p className="text-sm text-slate-500 mt-1">Track shared expenses and see who owes whom.</p>
+					<div className="flex items-start justify-between mt-2 gap-3">
+						<div>
+							<h1 className="text-2xl font-bold tracking-tight">Settle Up</h1>
+							<p className="text-sm text-slate-500 mt-1">Share this page's URL to collaborate on the group.</p>
+						</div>
+						<button
+							type="button"
+							onClick={copyLink}
+							className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium flex-shrink-0 mt-1"
+						>
+							<Copy size={14} /> {copied ? "Copied!" : "Copy link"}
+						</button>
+					</div>
 				</header>
+
+				{error && (
+					<div className="mb-4 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-md px-3 py-2">
+						{error}
+					</div>
+				)}
 
 				<div className="grid grid-cols-3 gap-3 mb-6">
 					<div className="bg-white rounded-lg border border-slate-200 p-3">

@@ -1,0 +1,13 @@
+name = "taytays-tools"
+compatibility_date = "2025-04-01"
+pages_build_output_dir = "dist"
+
+# Bind a D1 database to Pages Functions. Create the database first:
+#   npx wrangler d1 create splitwise-db
+# then paste the printed database_id below.
+# After that, run the migration:
+#   npx wrangler d1 execute splitwise-db --remote --file=migrations/0001_init.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "splitwise-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
