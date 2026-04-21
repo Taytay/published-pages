@@ -1,11 +1,7 @@
-import { type Env, json } from "../_utils";
-
-export { GroupDO } from "../../group-do";
+import { type Env, json, saveGroup } from "../_utils";
 
 export const onRequestPost: PagesFunction<Env> = async ({ env }) => {
 	const id = crypto.randomUUID();
-	const stub = env.GROUPS.get(env.GROUPS.idFromName(id));
-	const res = await stub.fetch("https://do/init", { method: "POST" });
-	if (!res.ok) return res;
+	await saveGroup(env.SPLITWISE, id, { people: [], expenses: [] });
 	return json({ id }, { status: 201 });
 };

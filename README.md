@@ -16,21 +16,37 @@ npm run typecheck    # Type-check only (TypeScript — frontend + functions)
 ```
 
 `npm run dev` only runs the static site. To exercise the Settle Up Pages
-Functions (plus the `GroupDO` Durable Object) locally:
+Functions (plus its KV namespace) locally, run a production build first
+then `wrangler pages dev`:
 
 ```bash
 npm run build
-npx wrangler pages dev dist
+npx wrangler pages dev dist --kv=SPLITWISE
 ```
 
-## Settle Up: Cloudflare Durable Object
+## Settle Up: Cloudflare KV setup (one-time)
 
-The Settle Up tool stores each group in its own Durable Object instance (class
-`GroupDO`, defined in `functions/group-do.ts`), keyed by the group's secret
-UUID. The binding is declared in `wrangler.toml` (checked in) — Cloudflare
-Pages reads it at build time and registers/binds the class automatically on
-deploy. No dashboard setup required.
+Group state is stored as a single JSON blob per group in a Cloudflare KV
+namespace, keyed by `group:<uuid>`. To wire it up on a fresh Cloudflare
+Pages project:
 
-If you ever need to wipe all group data, delete the Durable Object namespace
-from the Pages project's dashboard; a new one will be created on the next
-deploy.
+1. Create the namespace:
+   ```bash
+   npx wrangler kv:namespace create SPLITWISE
+   ```
+
+2. In the Pages dashboard, bind it to the Pages project under
+   **Settings → Functions → KV namespace bindings**:
+   - **Variable name:** `SPLITWISE`
+   - **Namespace:** pick the one you just created
+
+   Save, then redeploy the latest commit so the binding takes effect.
+
+### Caveats
+
+- KV is eventually consistent. Writes can take up to ~60s to propagate
+  globally. For this app (one person usually editing a group at a time)
+  it's fine, but two simultaneous writers could lose an update.
+- All Pages deploys (production + previews) share the bound namespace
+  by default. Use the dashboard's per-environment bindings if you want
+  a separate preview namespace.
