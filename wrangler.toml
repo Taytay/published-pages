@@ -12,4 +12,4 @@ class_name = "GroupDO"
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["GroupDO"]
+new_classes = ["GroupDO"]
