@@ -2,12 +2,16 @@ name = "taytays-tools"
 compatibility_date = "2025-04-01"
 pages_build_output_dir = "dist"
 
-# Bind a D1 database to Pages Functions. Create the database first:
-#   npx wrangler d1 create splitwise-db
-# then paste the printed database_id below.
-# After that, run the migration:
-#   npx wrangler d1 execute splitwise-db --remote --file=migrations/0001_init.sql
-[[d1_databases]]
-binding = "DB"
-database_name = "splitwise-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+# Each group lives in its own Durable Object instance, keyed by its secret UUID.
+# For local dev (`wrangler pages dev`) this binding is picked up automatically.
+# On the deployed Pages project, add the binding in the dashboard:
+#   Settings → Functions → Durable Object bindings
+#   Variable name: GROUPS
+#   Datastore: (from current script) → GroupDO
+[[durable_objects.bindings]]
+name = "GROUPS"
+class_name = "GroupDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GroupDO"]

@@ -1,5 +1,5 @@
 export type Env = {
-	DB: D1Database;
+	GROUPS: DurableObjectNamespace;
 };
 
 export function json(data: unknown, init: ResponseInit = {}): Response {
@@ -10,17 +10,4 @@ export function json(data: unknown, init: ResponseInit = {}): Response {
 			...init.headers,
 		},
 	});
-}
-
-export function badRequest(message: string): Response {
-	return json({ error: message }, { status: 400 });
-}
-
-export function notFound(message = "not found"): Response {
-	return json({ error: message }, { status: 404 });
-}
-
-export async function groupExists(db: D1Database, groupId: string): Promise<boolean> {
-	const row = await db.prepare("SELECT 1 AS ok FROM groups WHERE id = ?").bind(groupId).first();
-	return row != null;
 }
