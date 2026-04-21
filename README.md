@@ -32,13 +32,15 @@ project:
    ```bash
    npx wrangler d1 create splitwise-db
    ```
-   Copy the printed `database_id` into `wrangler.toml`.
+   Copy `wrangler.example.toml` to `wrangler.toml` (it's gitignored) and paste
+   in the printed `database_id`.
 
 2. Apply the schema:
    ```bash
    npx wrangler d1 execute splitwise-db --remote --file=migrations/0001_init.sql
    ```
 
-3. Confirm the Pages project binds the database as `DB` — either via the
-   dashboard (**Settings → Functions → D1 database bindings**) or by keeping
-   `wrangler.toml` checked in (Cloudflare picks it up automatically).
+3. In the Pages dashboard, bind the database to the Pages project as `DB`
+   under **Settings → Functions → D1 database bindings**. (`wrangler.toml` is
+   intentionally not checked in, because a committed file with a placeholder
+   `database_id` breaks the Pages build.)
