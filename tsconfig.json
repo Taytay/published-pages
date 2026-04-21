@@ -10,6 +10,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
 		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"jsx": "react-jsx",
 		"outDir": "dist",
 		"declaration": true,
 		"declarationMap": true,
