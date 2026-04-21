@@ -1,6 +1,7 @@
 import { ArrowRight, Check, Plus, Receipt, Trash2, Users, X } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import "./splitwise.css";
 
 type Person = { id: string; name: string };
 type Split = { personId: string; amount: number };
