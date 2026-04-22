@@ -21,7 +21,7 @@ then `wrangler pages dev`:
 
 ```bash
 npm run build
-npx wrangler pages dev dist --kv=SPLITWISE
+npx wrangler pages dev dist --kv SPLITWISE
 ```
 
 ## Settle Up: Cloudflare KV setup (one-time)
@@ -32,7 +32,7 @@ Pages project:
 
 1. Create the namespace:
    ```bash
-   npx wrangler kv:namespace create SPLITWISE
+   npx wrangler kv namespace create SPLITWISE
    ```
 
 2. In the Pages dashboard, bind it to the Pages project under
